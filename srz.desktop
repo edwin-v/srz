@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=srz - synthriderz downloader
+Exec=srz.py d %u
+StartupNotify=false
+MimeType=x-scheme-handler/synthriderz;
