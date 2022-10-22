@@ -18,7 +18,7 @@ import glob
 import json
 from zipfile import ZipFile
 import requests
-
+import dbus
 
 
 """
@@ -139,11 +139,12 @@ def CheckCustoms():
 """
 Download a song from JSON data unless the correct file exists
 """
-def DownloadSongJSON(songinfo):
+def DownloadSongJSON(songinfo, dbus_notify = None):
     current = FindCustom(songinfo["id"])
     if current:
         # skip if song is up to date
         if current["hash"] == songinfo["hash"]:
+            dbus_notify.Notify("", 0, "", "Song already downloaded and up to date.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
             return
         # remove the old song file
         try:
@@ -160,10 +161,12 @@ def DownloadSongJSON(songinfo):
         sf.close()
         print("Song",songinfo["id"],"Downloaded to", songinfo["filename"])
         print(songinfo["title"], "by", songinfo["artist"], "(mapped by", songinfo["mapper"] + ")")
+        dbus_notify.Notify("", 0, "", "Song downloaded to Synth Riders.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
         
     else:
         print("Failed to download song from:", url);
         print("Error code:", req.status_code)
+        dbus_notify.Notify("", 0, "", "Failed to download song. Error: "+str(req.status_code), songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
 
 
 
@@ -181,14 +184,19 @@ def DownloadSongID(id):
 Download song by synthriderz:// url
 """
 def DownloadSongURL(url):
+    # prepare dbus notification for 
+    dbusintf = "org.freedesktop.Notifications"
+    dbusobj = "/org/freedesktop/Notifications"
+    notify = dbus.Interface(dbus.SessionBus().get_object(dbusintf, dbusobj), dbusintf)
     # find song info by hash
     url = SRZ_API + "/?" + SELECTS + '&s={"hash": "' + url[len(SRZ_ONECLICKURL):] + '"}'
     req = requests.get(url)
     if req.status_code != 200:
         print("[Error] Failed to download song information.")
+        notify.Notify("", 0, "", "Failed to download song.", "", [], {"urgency": 1}, 2500)
         return
     songinfo = json.loads(req.content)
-    DownloadSongJSON(songinfo["data"][0])
+    DownloadSongJSON(songinfo["data"][0], dbus_notify=notify)
 
 
 
