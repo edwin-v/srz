@@ -144,7 +144,8 @@ def DownloadSongJSON(songinfo, dbus_notify = None):
     if current:
         # skip if song is up to date
         if current["hash"] == songinfo["hash"]:
-            dbus_notify.Notify("", 0, "", "Song already downloaded and up to date.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
+            if dbus_notify:
+                dbus_notify.Notify("", 0, "", "Song already downloaded and up to date.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
             return
         # remove the old song file
         try:
@@ -161,12 +162,14 @@ def DownloadSongJSON(songinfo, dbus_notify = None):
         sf.close()
         print("Song",songinfo["id"],"Downloaded to", songinfo["filename"])
         print(songinfo["title"], "by", songinfo["artist"], "(mapped by", songinfo["mapper"] + ")")
-        dbus_notify.Notify("", 0, "", "Song downloaded to Synth Riders.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
+        if dbus_notify:
+            dbus_notify.Notify("", 0, "", "Song downloaded to Synth Riders.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
         
     else:
         print("Failed to download song from:", url);
         print("Error code:", req.status_code)
-        dbus_notify.Notify("", 0, "", "Failed to download song. Error: "+str(req.status_code), songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
+        if dbus_notify:
+            dbus_notify.Notify("", 0, "", "Failed to download song. Error: "+str(req.status_code), songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
 
 
 
