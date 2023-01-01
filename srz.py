@@ -242,7 +242,7 @@ def UpdateInstalledSongs():
 Download song info per page and check for new and updated songs
 """
 def DownloadAllSongs():
-    page = 0
+    page = 1
     while True:
         # download a page of song info
         url = SRZ_API + "?select=" + SELECTS + "&page=" + str(page)
