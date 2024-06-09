@@ -30,6 +30,30 @@ def DownloadSongInfo(id):
     if req.status_code == 200:
         return json.loads(req.content)
 
+"""
+Extra data from synthriderz.meta.json in a .synth file
+"""
+def GetSongMetaData(f, warnings=True):
+    with ZipFile(f, 'r') as custom:
+        try:
+            custom.extract(METAFILE, TMPDIR)
+        except:
+            if warnings:
+                print("[Warning] Unknown file:", f);
+            # no metadata extract id from filename
+            id = f[len(SYNTHRIDERS_DIR + CUSTOMS_DIR + "/"):]
+            if id.startswith("DRAFT"):
+                id = id[6:]
+            id = id[:id.find("-")]
+            custom_data = {"id" : int(id), "hash" : "-", "filename" : os.path.basename(f)}
+            return custom_data
+    jfile = open(TMPDIR + "/" + METAFILE)
+    custom_data = json.load(jfile)
+    jfile.close()
+    os.remove(TMPDIR + "/" + METAFILE)
+    custom_data["filename"] = os.path.basename(f)
+    return custom_data
+
 
 
 """
@@ -39,21 +63,9 @@ def ScanCustoms(warnings=True):
     customs = []
     file_list = glob.glob( SYNTHRIDERS_DIR + CUSTOMS_DIR + "/*" + SYNTH_EXT )
     for f in file_list:
-        with ZipFile(f, 'r') as custom:
-            try:
-                custom.extract(METAFILE, TMPDIR)
-            except:
-                if warnings:
-                    print("[Warning] Unknown file:", f);
-                continue
-        jfile = open(TMPDIR + "/" + METAFILE)
-        custom_data = json.load(jfile)
-        jfile.close()
-        custom_data["filename"] = os.path.basename(f)
+        custom_data = GetSongMetaData(f, warnings)
         customs.append(custom_data)
-    os.remove(TMPDIR + "/" + METAFILE)
     return customs
-
 
 
 """
@@ -64,19 +76,12 @@ filenames start with the song id followed by a hyphen
 def FindCustom(id):
     file_list = glob.glob( SYNTHRIDERS_DIR + CUSTOMS_DIR + "/" + str(id) + "-*" + SYNTH_EXT )
     if len(file_list) == 0:
-        return
+        file_list = glob.glob( SYNTHRIDERS_DIR + CUSTOMS_DIR + "/DRAFT-" + str(id) + "-*" + SYNTH_EXT )
+        if len(file_list) == 0:
+            return
 
     for f in file_list:
-        with ZipFile(f, 'r') as custom:
-            try:
-                custom.extract(METAFILE, TMPDIR)
-            except:
-                # skip files without information
-                continue
-        jfile = open(TMPDIR + "/" + METAFILE)
-        custom_data = json.load(jfile)
-        jfile.close()
-        os.remove(TMPDIR + "/" + METAFILE)
+        custom_data = GetSongMetaData(f, False)
         if custom_data["id"] == id:
             custom_data["filename"] = os.path.basename(f)
             return custom_data
@@ -102,8 +107,13 @@ def PrintSongInfo(id):
         print("Last updated:", songinfo["updated_at"])
         
         current_customs = ScanCustoms(False)
-        if songinfo["id"] in current_customs.keys():
-            if current_customs[songinfo["id"]] == songinfo["filename"]:
+        info = None
+        for cc in current_customs:
+            if songinfo["id"] == cc["id"]:
+                info = cc
+                break
+        if info:
+            if cc["filename"] == songinfo["filename"]:
                 print("This song is installed and up to date.")
             else:
                 print("This song is installed but out of date.")
@@ -127,7 +137,7 @@ def CheckCustoms():
         songinfo = DownloadSongInfo(c["id"])
         if not songinfo:
             status = "NOT FOUND"
-        elif c["hash"] != songinfo["hash"]:
+        elif c["hash"] != "-" and c["hash"] != songinfo["hash"]:
             status = "OUT OF DATE"
         elif c["filename"] != songinfo["filename"]:
             status = "OK (OLD NAME)"
@@ -143,7 +153,8 @@ def DownloadSongJSON(songinfo, dbus_notify = None):
     current = FindCustom(songinfo["id"])
     if current:
         # skip if song is up to date
-        if current["hash"] == songinfo["hash"]:
+        if (current["hash"] == songinfo["hash"]) or \
+           (current["hash"] == "-" and current["filename"] == songinfo["filename"]):
             if dbus_notify:
                 dbus_notify.Notify("", 0, "", "Song already downloaded and up to date.", songinfo["artist"] + " / " + songinfo["title"], [], {"urgency": 1}, 2500)
             return
@@ -209,24 +220,14 @@ Check installed songs for updates and download them
 def UpdateInstalledSongs():
     file_list = glob.glob( SYNTHRIDERS_DIR + CUSTOMS_DIR + "/*" + SYNTH_EXT )
     for f in file_list:
-        with ZipFile(f, 'r') as custom:
-            try:
-                custom.extract(METAFILE, TMPDIR)
-            except:
-                print("[Warning] Unknown file:", f);
-                continue
-  
-        jfile = open(TMPDIR + "/" + METAFILE)
-        custom_data = json.load(jfile)
-        jfile.close()
-        os.remove(TMPDIR + "/" + METAFILE)
+        custom_data = GetSongMetaData(f, warnings)
         songinfo = DownloadSongInfo(custom_data["id"])
         
         if not songinfo:
             print("[Error] No song with id", custom_data["id"], " found in ", os.path.basename(f))
             continue
         
-        if(songinfo["hash"] == custom_data["hash"]):
+        if(songinfo["hash"] == custom_data["hash"] or custom_data["hash"] == "-"):
             if(songinfo["filename"] == os.path.basename(f)):
                 print(songinfo["title"], "by", songinfo["artist"], "(mapped by", songinfo["mapper"] + ") is up to date")
             else:
